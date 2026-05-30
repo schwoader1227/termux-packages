@@ -2,15 +2,28 @@ TERMUX_PKG_HOMEPAGE=https://github.com/fatedier/frp
 TERMUX_PKG_DESCRIPTION="A fast reverse proxy to expose a local server behind a NAT or firewall to the internet"
 TERMUX_PKG_LICENSE="Apache-2.0"
 TERMUX_PKG_MAINTAINER="2096779623 <admin@utermux.dev>"
-TERMUX_PKG_VERSION="0.61.2"
-TERMUX_PKG_SRCURL=https://github.com/fatedier/frp/archive/v${TERMUX_PKG_VERSION}.tar.gz
-TERMUX_PKG_SHA256=19600d944e05f7ed95bac53c18cbae6ce7eff859c62b434b0c315ca72acb1d3c
+TERMUX_PKG_VERSION="0.69.0"
+TERMUX_PKG_SRCURL=https://github.com/fatedier/frp/archive/refs/tags/v${TERMUX_PKG_VERSION}.tar.gz
+TERMUX_PKG_SHA256=b78879e74e44bb22805a8a4602c6f58b9f46971c003eb4079d5020f66e57ed37
 TERMUX_PKG_REPLACES="frpc, frps"
 TERMUX_PKG_BREAKS="frpc, frps"
 TERMUX_PKG_BUILD_IN_SRC=true
 TERMUX_PKG_AUTO_UPDATE=true
 
 termux_step_make() {
+	(
+		termux_setup_nodejs
+		unset CC CXX CFLAGS CXXFLAGS CPPFLAGS LDFLAGS AR AS CPP LD RANLIB READELF STRIP PREFIX PKGCONFIG PKG_CONFIG PKG_CONFIG_DIR PKG_CONFIG_LIBDIR
+		pushd web/frpc
+		npm install
+		npm run build
+		popd # web/frpc
+		pushd web/frps
+		npm install
+		npm run build
+		popd # web/frps
+	)
+
 	termux_setup_golang
 	make frpc
 	make frps

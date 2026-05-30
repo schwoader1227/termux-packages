@@ -2,19 +2,32 @@ TERMUX_PKG_HOMEPAGE=https://pypy.org
 TERMUX_PKG_DESCRIPTION="A fast, compliant alternative implementation of Python 3"
 TERMUX_PKG_LICENSE="MIT"
 TERMUX_PKG_MAINTAINER="@licy183"
-_MAJOR_VERSION=3.9
-TERMUX_PKG_VERSION=7.3.15
-TERMUX_PKG_REVISION=4
+_MAJOR_VERSION=3.11
+TERMUX_PKG_VERSION=7.3.22
 TERMUX_PKG_SRCURL=https://downloads.python.org/pypy/pypy$_MAJOR_VERSION-v$TERMUX_PKG_VERSION-src.tar.bz2
-TERMUX_PKG_SHA256=6bb9537d85aa7ad13c0aad2e41ff7fd55080bc9b4d1361b8f502df51db816e18
+TERMUX_PKG_SHA256=9f885a47a232b957f9b5cc4307264af229570ddea62a9c175351afa3a6321820
 TERMUX_PKG_DEPENDS="gdbm, libandroid-posix-semaphore, libandroid-support, libbz2, libcrypt, libexpat, libffi, liblzma, libsqlite, ncurses, ncurses-ui-libs, openssl, zlib"
 TERMUX_PKG_BUILD_DEPENDS="aosp-libs, coreutils, clang, make, pkg-config, python2, tk, xorgproto"
 TERMUX_PKG_RECOMMENDS="clang, make, pkg-config"
 TERMUX_PKG_SUGGESTS="pypy3-tkinter"
 TERMUX_PKG_BUILD_IN_SRC=true
+TERMUX_PKG_ON_DEVICE_BUILD_NOT_SUPPORTED=true
 
 termux_step_post_get_source() {
-	local p="$TERMUX_PKG_BUILDER_DIR/9998-link-against-pypy3-on-testcapi.diff"
+	local sqlite_version=$(. $TERMUX_SCRIPTDIR/packages/libsqlite/build.sh; echo $TERMUX_PKG_VERSION)
+	local sqlite_version_X=$(cut -d"." -f1 <<< "$sqlite_version")
+	local sqlite_version_Y=$(cut -d"." -f2 <<< "$sqlite_version")
+	local sqlite_version_Z=$(cut -d"." -f3 <<< "$sqlite_version")
+	local SQLITE_VERSION_NUMBER=$(bc <<< "($sqlite_version_X) * 1000000 + ($sqlite_version_Y) * 1000 + ($sqlite_version_Z)")
+	local p="$TERMUX_PKG_BUILDER_DIR/9997-do-not-cffi-dlopen-when-compiling-sqlite3.diff"
+	echo "Applying $(basename "${p}")"
+	sed \
+		's|@SQLITE_HAS_LOAD_EXTENSION@|True|g
+		s|@SQLITE_HAS_BACKUP@|True|g
+		s|@SQLITE_VERSION_NUMBER@|'"${SQLITE_VERSION_NUMBER}"'|g' \
+		"${p}" | patch --silent -p1
+
+	p="$TERMUX_PKG_BUILDER_DIR/9998-link-against-pypy3-on-testcapi.diff"
 	echo "Applying $(basename "${p}")"
 	sed 's|@TERMUX_PYPY_MAJOR_VERSION@|'"${_MAJOR_VERSION}"'|g' "${p}" \
 		| patch --silent -p1
@@ -25,14 +38,9 @@ termux_step_post_get_source() {
 		| patch --silent -p1
 
 	sed -e "s|@TERMUX_PREFIX@|${TERMUX_PREFIX}|g" \
+		-e "s|@TERMUX_PKG_API_LEVEL@|${TERMUX_PKG_API_LEVEL}|g" \
 		"$TERMUX_PKG_BUILDER_DIR"/termux.py.in > \
 		"$TERMUX_PKG_SRCDIR"/rpython/translator/platform/termux.py
-}
-
-termux_step_pre_configure() {
-	if $TERMUX_ON_DEVICE_BUILD; then
-		termux_error_exit "Package '$TERMUX_PKG_NAME' is not safe for on-device builds."
-	fi
 }
 
 __setup_proot() {
@@ -93,16 +101,20 @@ __setup_termux_docker_rootfs() {
 		)
 	fi
 
-	# Download update-static-dns and static-dns-hosts.txt from older termux-docker commit
+	# Download busybox, update-static-dns and static-dns-hosts.txt from older termux-docker commit
 	mkdir -p "$TERMUX_PKG_CACHEDIR"/termux-docker-utils
 	termux_download \
 		https://github.com/termux/termux-docker/raw/98af62205f4da832b71bb4de09cb8d6b17ceeaca/static-dns-hosts.txt \
 		"$TERMUX_PKG_CACHEDIR"/termux-docker-utils/static-dns-hosts.txt \
 		f5e28c8d37dc69e4876372cc05dcfd07aadc8499f5fa05bb6af1cfbff7cd656a
 	termux_download \
-		https://github.com/termux/termux-docker/raw/98af62205f4da832b71bb4de09cb8d6b17ceeaca/system/arm/bin/update-static-dns \
+		https://github.com/termux/termux-docker/raw/98af62205f4da832b71bb4de09cb8d6b17ceeaca/system/x86/bin/update-static-dns \
 		"$TERMUX_PKG_CACHEDIR"/termux-docker-utils/update-static-dns \
 		14b6ba13506dd90b691e5dbb84bf79ca155837dd43eb05c0e68fbe991c05ee5e
+	termux_download \
+		https://github.com/termux/termux-docker/raw/98af62205f4da832b71bb4de09cb8d6b17ceeaca/system/x86/bin/busybox \
+		"$TERMUX_PKG_CACHEDIR"/termux-docker-utils/busybox \
+		6c63a8623659aff24843d9b0720fa4aa216d44a5d60f29979a4073f3f80ce69c
 
 	# Extract host platform rootfs tar
 	__pypy3_host_rootfs="$TERMUX_PKG_CACHEDIR/host-termux-rootfs-$__pypy3_host_arch"
@@ -117,9 +129,12 @@ __setup_termux_docker_rootfs() {
 			"$__pypy3_host_rootfs".tmp/system/etc/
 		cp "$TERMUX_PKG_CACHEDIR"/termux-docker-utils/update-static-dns \
 			"$__pypy3_host_rootfs".tmp/"$TERMUX_PREFIX"/bin/
+		cp "$TERMUX_PKG_CACHEDIR"/termux-docker-utils/busybox \
+			"$__pypy3_host_rootfs".tmp/system/bin/
 		cp "$TERMUX_PKG_CACHEDIR"/proot-bin/proot \
 			"$__pypy3_host_rootfs".tmp/"$TERMUX_PREFIX"/bin/
 		chmod +x "$__pypy3_host_rootfs".tmp/"$TERMUX_PREFIX"/bin/update-static-dns
+		chmod +x "$__pypy3_host_rootfs".tmp/system/bin/busybox
 		rm -f "$__pypy3_host_rootfs".tmp/bin
 		rm -f "$__pypy3_host_rootfs".tmp/usr
 		rm -f "$__pypy3_host_rootfs".tmp/tmp
@@ -297,7 +312,7 @@ termux_step_make() {
 			--archive-name=pypy$_MAJOR_VERSION-v$TERMUX_PKG_VERSION \
 			--targetdir=$TERMUX_PKG_SRCDIR \
 			--no-embedded-dependencies \
-			--no-keep-debug || bash
+			--no-keep-debug
 
 	rm -f "$TERMUX_PREFIX"/lib/libpypy$_MAJOR_VERSION-c.so
 }
@@ -311,11 +326,22 @@ termux_step_make_install() {
 }
 
 termux_step_create_debscripts() {
+	# postinst script to clean up runtime-generated files of previous pypy3 versions that
+	# do not match the current $_MAJOR_VERSION
+	# (this one needs to have bash in the shebang, not sh, because of the use of a
+	# wildcard feature that does not work if the shebang is sh)
+	cat <<- POSTINST_EOF > ./postinst
+	#!$TERMUX_PREFIX/bin/bash
+	echo "Deleting files from other versions of $TERMUX_PKG_NAME..."
+	rm -Rf $TERMUX_PREFIX/opt/$TERMUX_PKG_NAME/lib/pypy*[^$_MAJOR_VERSION]
+	exit 0
+	POSTINST_EOF
+
 	# Pre-rm script to cleanup runtime-generated files.
 	cat <<- PRERM_EOF > ./prerm
 	#!$TERMUX_PREFIX/bin/sh
 
-	if [ "$TERMUX_PACKAGE_FORMAT" != "pacman" ] && [ "\$1" != "remove" ]; then
+	if [ "$TERMUX_PACKAGE_FORMAT" = "debian" ] && [ "\$1" != "remove" ]; then
 	    exit 0
 	fi
 
@@ -328,5 +354,5 @@ termux_step_create_debscripts() {
 	exit 0
 	PRERM_EOF
 
-	chmod 0755 prerm
+	chmod 0755 postinst prerm
 }

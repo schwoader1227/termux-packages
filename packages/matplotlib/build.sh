@@ -14,13 +14,13 @@ LICENSE/LICENSE_SOLARIZED
 LICENSE/LICENSE_STIX
 LICENSE/LICENSE_YORICK"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION="3.10.1"
-TERMUX_PKG_SRCURL=https://github.com/matplotlib/matplotlib/archive/refs/tags/v${TERMUX_PKG_VERSION}.tar.gz
-TERMUX_PKG_SHA256=c3d78b5c4fedd8338323d24e040faf797e153a0d448fd641deee6eb3a3d6420b
+TERMUX_PKG_VERSION="3.10.9"
+TERMUX_PKG_SRCURL="https://github.com/matplotlib/matplotlib/archive/refs/tags/v${TERMUX_PKG_VERSION}.tar.gz"
+TERMUX_PKG_SHA256=55251fcbca725a3b7ed20aefaff07a67560ffb0a7d739ebab0c99eb14f4c2d94
 TERMUX_PKG_AUTO_UPDATE=true
 TERMUX_PKG_DEPENDS="freetype, libc++, patchelf, ninja, python, python-contourpy, python-numpy, python-pillow, python-pip"
 _NUMPY_VERSION=$(. $TERMUX_SCRIPTDIR/packages/python-numpy/build.sh; echo $TERMUX_PKG_VERSION)
-TERMUX_PKG_PYTHON_COMMON_DEPS="build, 'meson-python>=0.13.1', wheel, 'numpy==$_NUMPY_VERSION', 'pybind11>=2.6.0', 'setuptools>=64', 'setuptools_scm>=7'"
+TERMUX_PKG_PYTHON_COMMON_BUILD_DEPS="build, 'meson-python>=0.13.1', wheel, 'numpy==$_NUMPY_VERSION', 'pybind11>=2.6.0', 'setuptools>=64', 'setuptools_scm>=7'"
 
 TERMUX_MESON_WHEEL_CROSSFILE="$TERMUX_PKG_TMPDIR/wheel-cross-file.txt"
 TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
@@ -55,14 +55,6 @@ termux_step_make() {
 
 termux_step_make_install() {
 	local _pyv="${TERMUX_PYTHON_VERSION/./}"
-	local _whl="matplotlib-$TERMUX_PKG_VERSION-cp$_pyv-cp$_pyv-linux_$TERMUX_ARCH.whl"
+	local _whl="matplotlib-$TERMUX_PKG_VERSION-cp$_pyv-cp$_pyv-android_$TERMUX_ARCH.whl"
 	pip install --no-deps --prefix=$TERMUX_PREFIX --force-reinstall $TERMUX_PKG_SRCDIR/dist/$_whl
-}
-
-termux_step_create_debscripts() {
-	cat <<- EOF > ./postinst
-	#!$TERMUX_PREFIX/bin/sh
-	echo "Installing dependencies through pip. This may take a while..."
-	MATHLIB="m" pip3 install matplotlib
-	EOF
 }

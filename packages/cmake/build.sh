@@ -1,11 +1,12 @@
 TERMUX_PKG_HOMEPAGE=https://cmake.org/
 TERMUX_PKG_DESCRIPTION="Family of tools designed to build, test and package software"
 TERMUX_PKG_LICENSE="BSD 3-Clause"
+TERMUX_PKG_LICENSE_FILE="LICENSE.rst"
 TERMUX_PKG_MAINTAINER="@termux"
 # When updating version here, please update termux_setup_cmake.sh as well.
-TERMUX_PKG_VERSION="3.31.6"
-TERMUX_PKG_SRCURL=https://www.cmake.org/files/v${TERMUX_PKG_VERSION:0:4}/cmake-${TERMUX_PKG_VERSION}.tar.gz
-TERMUX_PKG_SHA256=653427f0f5014750aafff22727fb2aa60c6c732ca91808cfb78ce22ddd9e55f0
+TERMUX_PKG_VERSION="4.3.3"
+TERMUX_PKG_SRCURL="https://www.cmake.org/files/v${TERMUX_PKG_VERSION:0:3}/cmake-${TERMUX_PKG_VERSION}.tar.gz"
+TERMUX_PKG_SHA256=cba4bb7a44edf2877bb6f059932896383babe435b3a8c3b5df48b4aa41c9bb85
 TERMUX_PKG_AUTO_UPDATE=true
 TERMUX_PKG_DEPENDS="libarchive, libc++, libcurl, libexpat, jsoncpp, libuv, rhash, zlib"
 TERMUX_PKG_RECOMMENDS="clang, make"
@@ -22,32 +23,31 @@ TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
 -DCMAKE_USE_SYSTEM_LIBRHASH=ON
 -DCMAKE_USE_SYSTEM_LIBUV=ON
 -DCMAKE_USE_SYSTEM_ZLIB=ON
--DBUILD_CursesDialog=ON"
+-DBUILD_CursesDialog=ON
+"
 
 termux_pkg_auto_update() {
 	local TERMUX_SETUP_CMAKE="${TERMUX_SCRIPTDIR}/scripts/build/setup/termux_setup_cmake.sh"
-	local TERMUX_CMAKE_VERSION=$(grep "local TERMUX_CMAKE_VERSION=" "${TERMUX_SETUP_CMAKE}" | cut -d"=" -f2)
-	local TERMUX_REPOLOGY_DATA_FILE=$(mktemp)
-	python3 "${TERMUX_SCRIPTDIR}"/scripts/updates/api/dump-repology-data \
-		"${TERMUX_REPOLOGY_DATA_FILE}" "${TERMUX_PKG_NAME}" >/dev/null || \
-		echo "{}" > "${TERMUX_REPOLOGY_DATA_FILE}"
-	local latest_version=$(jq -r --arg packageName "${TERMUX_PKG_NAME}" '.[$packageName]' < "${TERMUX_REPOLOGY_DATA_FILE}")
+	local latest_version=$(termux_repology_api_get_latest_version "${TERMUX_PKG_NAME}")
 	if [[ "${latest_version}" == "null" ]]; then
 		latest_version="${TERMUX_PKG_VERSION}"
 	fi
-	if [[ "${latest_version}" == "${TERMUX_PKG_VERSION}" ]] && \
-		[[ "${latest_version}" == "${TERMUX_CMAKE_VERSION}" ]]; then
+	if [[ "${latest_version}" == "${TERMUX_PKG_VERSION}" ]]; then
 		echo "INFO: No update needed. Already at version '${TERMUX_PKG_VERSION}'."
-		rm -f "${TERMUX_REPOLOGY_DATA_FILE}"
 		return
 	fi
-	rm -f "${TERMUX_REPOLOGY_DATA_FILE}"
 
 	local TERMUX_CMAKE_TARNAME="cmake-${latest_version}-linux-x86_64.tar.gz"
 	local TERMUX_CMAKE_URL="https://github.com/Kitware/CMake/releases/download/v${latest_version}/${TERMUX_CMAKE_TARNAME}"
 	local TERMUX_CMAKE_TARFILE=$(mktemp)
 	curl -Ls "${TERMUX_CMAKE_URL}" -o "${TERMUX_CMAKE_TARFILE}"
 	local TERMUX_CMAKE_SHA256=$(sha256sum "${TERMUX_CMAKE_TARFILE}" | cut -d" " -f1)
+
+	if [[ "${BUILD_PACKAGES}" == "false" ]]; then
+		echo "INFO: package needs to be updated to ${latest_version}."
+		return
+	fi
+
 	sed \
 		-e "s|local TERMUX_CMAKE_VERSION=.*|local TERMUX_CMAKE_VERSION=${latest_version}|" \
 		-e "s|local TERMUX_CMAKE_SHA256=.*|local TERMUX_CMAKE_SHA256=${TERMUX_CMAKE_SHA256}|" \

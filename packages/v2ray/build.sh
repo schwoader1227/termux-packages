@@ -2,18 +2,18 @@ TERMUX_PKG_HOMEPAGE=https://www.v2fly.org/
 TERMUX_PKG_DESCRIPTION="A platform for building proxies to bypass network restrictions"
 TERMUX_PKG_LICENSE="MIT"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION="5.28.0"
+TERMUX_PKG_VERSION="5.49.0"
 TERMUX_PKG_SRCURL=git+https://github.com/v2fly/v2ray-core
 TERMUX_PKG_BUILD_IN_SRC=true
 TERMUX_PKG_AUTO_UPDATE=true
 TERMUX_PKG_UPDATE_TAG_TYPE="latest-release-tag"
 
 _RELEASE_URL=https://github.com/v2fly/v2ray-core/releases/download/v$TERMUX_PKG_VERSION/v2ray-linux-64.zip
-_RELEASE_SHA256=bafdd09efabf566328d9c12922d2d2c1dc9094aa994cb812f456192567fe61d0
+_RELEASE_SHA256=6c27d3f12c89a51b2efcf465ec37395ca7e51eaa7a9a58b8e3f43253df3143dd
 
 termux_pkg_auto_update() {
 	local latest_tag
-	latest_tag="$(termux_github_api_get_tag "https://github.com/v2fly/v2ray-core" "${TERMUX_PKG_UPDATE_TAG_TYPE}")"
+	latest_tag="$(termux_github_api_get_tag)"
 	(( ${#latest_tag} )) || {
 		printf '%s\n' \
 		'WARN: Auto update failure!' \
@@ -21,15 +21,22 @@ termux_pkg_auto_update() {
 	return
 	} >&2
 
+	latest_tag="${latest_tag#v}"
+
 	if [[ "${latest_tag}" == "${TERMUX_PKG_VERSION}" ]]; then
 		echo "INFO: No update needed. Already at version '${TERMUX_PKG_VERSION}'."
 		return
 	fi
 
-	local tmpdir
+	if [[ "${BUILD_PACKAGES}" == "false" ]]; then
+		echo "INFO: package needs to be updated to ${latest_tag}."
+		return
+	fi
+
+	local tmpdir sha
 	tmpdir="$(mktemp -d)"
 	curl -sLo "${tmpdir}/tmpfile" "https://github.com/v2fly/v2ray-core/releases/download/v$latest_tag/v2ray-linux-64.zip"
-	local sha="$(sha256sum "${tmpdir}/tmpfile" | cut -d ' ' -f 1)"
+	sha="$(sha256sum "${tmpdir}/tmpfile" | cut -d ' ' -f 1)"
 
 	sed \
 		-e "s|^_RELEASE_SHA256=.*|_RELEASE_SHA256=${sha}|" \

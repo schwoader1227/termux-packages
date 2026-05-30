@@ -2,9 +2,9 @@ TERMUX_PKG_HOMEPAGE=https://github.com/xo/usql
 TERMUX_PKG_DESCRIPTION="A universal command-line interface for SQL databases"
 TERMUX_PKG_LICENSE="MIT"
 TERMUX_PKG_MAINTAINER="@flipee"
-TERMUX_PKG_VERSION="0.19.19"
-TERMUX_PKG_SRCURL=https://github.com/xo/usql/archive/v$TERMUX_PKG_VERSION.tar.gz
-TERMUX_PKG_SHA256=73db53e7c99043ce6b2df0db32e97ed5d5483a4b067773d21d9343d77b2297da
+TERMUX_PKG_VERSION="0.21.4"
+TERMUX_PKG_SRCURL=https://github.com/xo/usql/archive/refs/tags/v$TERMUX_PKG_VERSION.tar.gz
+TERMUX_PKG_SHA256=6dfe613eff669606ba52f8c4a046d70677c47b2af61e87dc471ae2c44e50cca7
 TERMUX_PKG_AUTO_UPDATE=true
 TERMUX_PKG_BUILD_IN_SRC=true
 
@@ -16,6 +16,9 @@ termux_step_make() {
 		tags="$tags no_netezza no_chai"
 	fi
 
+	# TODO: remove this once the upstream package is updated to suport go 1.26
+	go mod edit -replace github.com/cockroachdb/swiss=github.com/cockroachdb/swiss@b0f6560
+	go mod tidy
 	go build \
 		-trimpath \
 		-tags="$tags" \

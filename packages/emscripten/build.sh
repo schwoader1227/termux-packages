@@ -2,7 +2,7 @@ TERMUX_PKG_HOMEPAGE=https://emscripten.org
 TERMUX_PKG_DESCRIPTION="Emscripten: An LLVM-to-WebAssembly Compiler"
 TERMUX_PKG_LICENSE="MIT"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION="4.0.4"
+TERMUX_PKG_VERSION="5.0.7"
 TERMUX_PKG_SRCURL=git+https://github.com/emscripten-core/emscripten
 TERMUX_PKG_GIT_BRANCH=${TERMUX_PKG_VERSION}
 TERMUX_PKG_DEPENDS="nodejs-lts | nodejs, python"
@@ -33,21 +33,23 @@ opt/emscripten-llvm/bin/clang-pseudo
 opt/emscripten-llvm/bin/clang-refactor
 opt/emscripten-llvm/bin/clang-rename
 opt/emscripten-llvm/bin/clang-repl
+opt/emscripten-llvm/bin/clang-ssaf-format
+opt/emscripten-llvm/bin/clang-ssaf-linker
 opt/emscripten-llvm/bin/clang-sycl-linker
 opt/emscripten-llvm/bin/diagtool
 opt/emscripten-llvm/bin/git-clang-format
 opt/emscripten-llvm/bin/hmaptool
-opt/emscripten-llvm/bin/llvm-cov
 opt/emscripten-llvm/bin/llvm-dlltool
 opt/emscripten-llvm/bin/llvm-lib
 opt/emscripten-llvm/bin/llvm-link
 opt/emscripten-llvm/bin/llvm-mca
 opt/emscripten-llvm/bin/llvm-ml
+opt/emscripten-llvm/bin/llvm-ml64
 opt/emscripten-llvm/bin/llvm-pdbutil
-opt/emscripten-llvm/bin/llvm-profdata
 opt/emscripten-llvm/bin/llvm-profgen
 opt/emscripten-llvm/bin/llvm-rc
 opt/emscripten-llvm/bin/nvptx-arch
+opt/emscripten-llvm/bin/offload-arch
 opt/emscripten-llvm/lib/libclang.so*
 opt/emscripten-llvm/share
 opt/emscripten/LICENSE
@@ -55,13 +57,13 @@ opt/emscripten/LICENSE
 
 # https://github.com/emscripten-core/emscripten/issues/11362
 # can switch to stable LLVM to save space once above is fixed
-_LLVM_COMMIT=148111fdcf0e807fe74274b18fcf65c4cff45d63
-_LLVM_TGZ_SHA256=84dae4c261a4b1e277d94977c9f929f8d51b252de3f1002099bd0fc4e07c20b9
+_LLVM_COMMIT=7b58716d96c3ae4c0c4e6f72e29b16137bb6224b
+_LLVM_TGZ_SHA256=0791c69319e1861e86ccb438d10b1b1816987f2d99b13d7e95ef08f88f0cedf8
 
 # https://github.com/emscripten-core/emscripten/issues/12252
 # upstream says better bundle the right binaryen revision for now
-_BINARYEN_COMMIT=5f767b73d8dc846db532decc64109d3aab63873c
-_BINARYEN_TGZ_SHA256=3d8811bd49cc2d91b8e5b04da98e138f6705694fa64ac935be263525a3ad5106
+_BINARYEN_COMMIT=c6a5e65b77a4b6e9d72fa7ba674632aba4b99099
+_BINARYEN_TGZ_SHA256=a807c950b910d247a5f68dd059e775f0c7bda9fecff5a1ef11f4180e1a60ccf8
 
 # https://github.com/emscripten-core/emsdk/blob/main/emsdk.py
 # https://chromium.googlesource.com/emscripten-releases/+/refs/heads/main/src/build.py
@@ -78,7 +80,7 @@ _LLVM_BUILD_ARGS="
 -DLLVM_ENABLE_LIBPFM=OFF
 -DLLVM_ENABLE_LIBXML2=OFF
 -DLLVM_ENABLE_LTO=Thin
--DLLVM_ENABLE_PROJECTS=clang;compiler-rt;lld
+-DLLVM_ENABLE_PROJECTS=clang;lld
 -DLLVM_INCLUDE_BENCHMARKS=OFF
 -DLLVM_INCLUDE_EXAMPLES=OFF
 -DLLVM_INCLUDE_TESTS=OFF
@@ -110,10 +112,10 @@ _BINARYEN_BUILD_ARGS="
 # based on scripts/updates/internal/termux_github_auto_update.sh
 termux_pkg_auto_update() {
 	local latest_tag
-	latest_tag=$(termux_github_api_get_tag "${TERMUX_PKG_SRCURL}" "${TERMUX_PKG_UPDATE_TAG_TYPE}")
+	latest_tag=$(termux_github_api_get_tag)
 
 	if [[ -z "${latest_tag}" ]]; then
-		termux_error_exit "ERROR: Unable to get tag from ${TERMUX_PKG_SRCURL}"
+		termux_error_exit "Unable to get tag from ${TERMUX_PKG_SRCURL}"
 	fi
 
 	if [[ "${latest_tag}" == "${TERMUX_PKG_VERSION}" ]]; then
@@ -143,6 +145,11 @@ termux_pkg_auto_update() {
 	_BINARYEN_COMMIT ${binaryen_commit} = ${binaryen_tgz_sha256}
 	EOL
 
+	if [[ "${BUILD_PACKAGES}" == "false" ]]; then
+		echo "INFO: package needs to be updated to ${latest_tag}."
+		return
+	fi
+
 	sed \
 		-e "s|^_LLVM_COMMIT=.*|_LLVM_COMMIT=${llvm_commit}|" \
 		-e "s|^_LLVM_TGZ_SHA256=.*|_LLVM_TGZ_SHA256=${llvm_tgz_sha256}|" \
@@ -157,12 +164,15 @@ termux_pkg_auto_update() {
 
 termux_step_post_get_source() {
 	# for comparing files in termux_step_post_massage
-	pushd "${TERMUX_PKG_CACHEDIR}"
-	rm -fr emsdk
-	git clone https://github.com/emscripten-core/emsdk --depth=1
-	cd emsdk
-	./emsdk install latest
-	popd
+	if [[ ! -f "${TERMUX_PKG_CACHEDIR}/emsdk-fetched" || $(cat "${TERMUX_PKG_CACHEDIR}/emsdk-fetched") != "$TERMUX_PKG_VERSION" ]]; then
+		pushd "${TERMUX_PKG_CACHEDIR}"
+		rm -fr emsdk
+		git clone https://github.com/emscripten-core/emsdk --depth=1
+		cd emsdk
+		./emsdk install latest
+		echo "$TERMUX_PKG_VERSION" > "${TERMUX_PKG_CACHEDIR}"/emsdk-fetched
+		popd
+	fi
 
 	termux_download \
 		"https://github.com/llvm/llvm-project/archive/${_LLVM_COMMIT}.tar.gz" \
@@ -237,6 +247,14 @@ termux_step_pre_configure() {
 	# this is a workaround for build-all.sh issue
 	TERMUX_PKG_DEPENDS+=", emscripten-binaryen, emscripten-llvm"
 
+	termux_setup_cmake
+	termux_setup_ninja
+
+	# emscripten 4.0.11
+	# for "npm ci --omit=dev" in ./tools/install.py
+	# but we still remove "node_modules" directory in make install step
+	termux_setup_nodejs
+
 	# https://github.com/termux/termux-packages/issues/16358
 	# TODO libclang-cpp.so* is not affected
 	if [[ "${TERMUX_ON_DEVICE_BUILD}" == "true" ]]; then
@@ -261,9 +279,10 @@ termux_step_pre_configure() {
 }
 
 termux_step_make() {
-	termux_setup_cmake
-	termux_setup_ninja
+	:
+}
 
+termux_step_make_install() {
 	# from packages/libllvm/build.sh
 	local _LLVM_TARGET_TRIPLE=${TERMUX_HOST_PLATFORM/-/-unknown-}${TERMUX_PKG_API_LEVEL}
 	local _LLVM_TARGET_ARCH
@@ -298,10 +317,13 @@ termux_step_make() {
 		-C "${TERMUX_PKG_BUILDDIR}/build-binaryen" \
 		-j "${TERMUX_PKG_MAKE_PROCESSES}" \
 		install
-}
 
-termux_step_make_install() {
 	pushd "${TERMUX_PKG_SRCDIR}"
+
+	# emscripten 4.0.13
+	# https://github.com/emscripten-core/emscripten/pull/23761
+	# https://github.com/termux/termux-packages/issues/25777
+	./tools/maint/create_entry_points.py
 
 	# https://github.com/emscripten-core/emscripten/pull/15840
 	sed -e "s|-git||" -i "${TERMUX_PKG_SRCDIR}/emscripten-version.txt"
@@ -309,6 +331,10 @@ termux_step_make_install() {
 	# skip using Makefile which does host npm install
 	rm -fr "${TERMUX_PREFIX}/opt/emscripten"
 	./tools/install.py "${TERMUX_PREFIX}/opt/emscripten"
+
+	# remove node_modules directory
+	# to be installed on device post install
+	rm -fr "${TERMUX_PREFIX}/opt/emscripten/node_modules"
 
 	# subpackage optional third party test suite files
 	cp -fr "${TERMUX_PKG_SRCDIR}/test/third_party" "${TERMUX_PREFIX}/opt/emscripten/test/third_party"
@@ -357,6 +383,13 @@ termux_step_post_massage() {
 	local df=$(diff -u <(echo "${upstream_bin}") <(echo -e "${llvm_bin}\n${binaryen_bin}" | sort))
 	if [[ -n "${df}" ]]; then
 		termux_error_exit "Mismatch list of binaries with upstream:\n${df}"
+	fi
+
+	local upstream_entrypoint=$(find "${TERMUX_PKG_CACHEDIR}/emsdk/upstream/emscripten" -mindepth 1 -maxdepth 1 -type f | xargs -i bash -c "[[ -x '{}' ]] && basename '{}'" | sort)
+	local downstream_entrypoint=$(find "${TERMUX_PREFIX}/opt/emscripten" -mindepth 1 -maxdepth 1 -type f | xargs -i bash -c "[[ -x '{}' ]] && basename '{}'" | sort)
+	local df2=$(diff -u <(echo "${upstream_entrypoint}") <(echo "${downstream_entrypoint}"))
+	if [[ -n "${df2}" ]]; then
+		termux_error_exit "Mismatch list of entrypoints with upstream:\n${df2}"
 	fi
 }
 

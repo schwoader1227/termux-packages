@@ -2,9 +2,9 @@ TERMUX_PKG_HOMEPAGE=https://www.freerdp.com/
 TERMUX_PKG_DESCRIPTION="A free remote desktop protocol library and clients"
 TERMUX_PKG_LICENSE="Apache-2.0"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION="3.13.0"
+TERMUX_PKG_VERSION="3.26.0"
 TERMUX_PKG_SRCURL=https://github.com/FreeRDP/FreeRDP/archive/refs/tags/$TERMUX_PKG_VERSION.tar.gz
-TERMUX_PKG_SHA256=b0016e1280fc19a6bd43dbe789a378cf64a255403fd39a767afa7a59c1288e6b
+TERMUX_PKG_SHA256=ae3b1c0b8e334ecbc2c784bce266249309fad32a0ef41947ce5c059eb18e2059
 TERMUX_PKG_AUTO_UPDATE=true
 TERMUX_PKG_DEPENDS="libandroid-shmem, libcairo, libicu, libjpeg-turbo, libusb, libwayland, libx11, libxcursor, libxdamage, libxext, libxfixes, libxi, libxinerama, libxkbcommon, libxkbfile, libxrandr, libxrender, libxv, openssl, pulseaudio, zlib"
 TERMUX_PKG_BUILD_DEPENDS="libwayland-cross-scanner, libwayland-protocols"
@@ -35,7 +35,7 @@ termux_step_post_get_source() {
 }
 
 termux_step_pre_configure() {
-	export PATH="$TERMUX_PREFIX/opt/libwayland/cross/bin:$PATH"
+	termux_setup_wayland_cross_pkg_config_wrapper
 
 	CFLAGS+=" -Wno-incompatible-function-pointer-types"
 	CPPFLAGS+=" -D__USE_BSD"

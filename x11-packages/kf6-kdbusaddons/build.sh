@@ -1,12 +1,12 @@
-TERMUX_PKG_HOMEPAGE='https://community.kde.org/Frameworks'
+TERMUX_PKG_HOMEPAGE='https://invent.kde.org/frameworks/kdbusaddons'
 TERMUX_PKG_DESCRIPTION='Addons to QtDBus'
 TERMUX_PKG_LICENSE="LGPL-2.0, LGPL-3.0"
 TERMUX_PKG_MAINTAINER="@termux"
-TERMUX_PKG_VERSION="6.11.0"
-TERMUX_PKG_SRCURL=https://download.kde.org/stable/frameworks/${TERMUX_PKG_VERSION%.*}/kdbusaddons-${TERMUX_PKG_VERSION}.tar.xz
-TERMUX_PKG_SHA256=62e0f3b0487ef1ab729fc85bcb5498c9449e0b74fe8049779434158bb8b12a87
+TERMUX_PKG_VERSION="6.26.0"
+TERMUX_PKG_SRCURL="https://download.kde.org/stable/frameworks/${TERMUX_PKG_VERSION%.*}/kdbusaddons-${TERMUX_PKG_VERSION}.tar.xz"
+TERMUX_PKG_SHA256=894bb2e032c6f6d9b4a58b8b24678692a9f4e70e953ff4dabda2ed4e9b5431e2
 TERMUX_PKG_DEPENDS="qt6-qtbase"
-TERMUX_PKG_BUILD_DEPENDS="extra-cmake-modules (>= ${TERMUX_PKG_VERSION}), libc++, qt6-qttools"
+TERMUX_PKG_BUILD_DEPENDS="extra-cmake-modules (>= ${TERMUX_PKG_VERSION%.*}), libc++, qt6-qttools"
 TERMUX_PKG_AUTO_UPDATE=true
 TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
 -DCMAKE_SYSTEM_NAME=Linux
